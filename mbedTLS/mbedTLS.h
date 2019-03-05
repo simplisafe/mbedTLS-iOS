@@ -3,7 +3,7 @@
 //  mbedTLS
 //
 //  Created by Siddarth Gandhi on 2/21/19.
-//  Copyright © 2019 Siddarth Gandhi. All rights reserved.
+//  Copyright © 2019 SimpliSafe. All rights reserved.
 //
 
 #import <UIKit/UIKit.h>
