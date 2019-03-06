@@ -32,6 +32,7 @@ public class mbedTLS {
     public static var sslConfig: mbedtls_ssl_config!
     public static var counterRandomByteGenerator: mbedtls_ctr_drbg_context!
     public static var entropy: mbedtls_entropy_context!
+    public static var certChain: mbedtls_x509_crt!
     
     public static var writeCallbackBuffer: [UInt8]?
     public static var readCallbackBuffer: [UInt8]?
@@ -117,6 +118,18 @@ public class mbedTLS {
         }
         
         return mbedTLS.writeCallbackBuffer
+    }
+    
+    public static func parseClientCertificates(_ concatenatedPemCerts: String) {
+        certChain = mbedtls_x509_crt()
+        mbedtls_x509_crt_init(&certChain)
+        
+        let certBuffer = Array(concatenatedPemCerts.utf8)
+        
+        if mbedtls_x509_crt_parse(&certChain, certBuffer, certBuffer.count) != 0 {
+            print("mbedtls_x509_crt_parse failed!")
+            return
+        }
     }
     
 }
