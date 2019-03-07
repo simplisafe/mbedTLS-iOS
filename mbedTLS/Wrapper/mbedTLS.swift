@@ -32,7 +32,8 @@ public class mbedTLS {
     public static var sslConfig: mbedtls_ssl_config!
     public static var counterRandomByteGenerator: mbedtls_ctr_drbg_context!
     public static var entropy: mbedtls_entropy_context!
-    public static var certChain: mbedtls_x509_crt!
+    public static var certChain1: mbedtls_x509_crt!
+    public static var certChain2: mbedtls_x509_crt!
     
     public static var writeCallbackBuffer: [UInt8]?
     public static var readCallbackBuffer: [UInt8]?
@@ -52,11 +53,15 @@ public class mbedTLS {
         sslConfig = mbedtls_ssl_config()
         counterRandomByteGenerator = mbedtls_ctr_drbg_context()
         entropy = mbedtls_entropy_context()
+        certChain1 = mbedtls_x509_crt()
+        certChain2 = mbedtls_x509_crt()
         
         mbedtls_ssl_init(&sslContext)
         mbedtls_ssl_config_init(&sslConfig)
         mbedtls_ctr_drbg_init(&counterRandomByteGenerator)
         mbedtls_entropy_init(&entropy)
+        mbedtls_x509_crt_init(&certChain1)
+        mbedtls_x509_crt_init(&certChain2)
         
         if mbedtls_ctr_drbg_seed(&counterRandomByteGenerator, mbedtls_entropy_func, &entropy, nil, 0) != 0 {
             print("mbedtls_ctr_drbg_seed failed!")
@@ -101,11 +106,9 @@ public class mbedTLS {
         mbedtls_ssl_conf_dbg(&sslConfig, debug_msg, stdout)
     }
     
-    public static func executeNextHandshakeStep() -> [UInt8]? {
-        mbedTLS.writeCallbackBuffer = nil
-        
+    public static func executeNextHandshakeStep() {
         if mbedTLS.currentHandshakeState == .serverFinished {
-            return nil
+            return
         }
         
         if mbedTLS.currentHandshakeState == .clientHello {
@@ -116,20 +119,21 @@ public class mbedTLS {
             mbedtls_ssl_handshake_client_step(&sslContext)
             mbedTLS.currentHandshakeState = HandshakeSteps(rawValue: mbedTLS.currentHandshakeState.rawValue + 1)!
         }
-        
-        return mbedTLS.writeCallbackBuffer
     }
     
-    public static func parseClientCertificates(_ concatenatedPemCerts: String) {
-        certChain = mbedtls_x509_crt()
-        mbedtls_x509_crt_init(&certChain)
-        
-        let certBuffer = Array(concatenatedPemCerts.utf8)
-        
-        if mbedtls_x509_crt_parse(&certChain, certBuffer, certBuffer.count) != 0 {
+    public static func parseClientCertificates(_ concatenatedPemCerts: [UInt8], chain: inout mbedtls_x509_crt) {
+        if mbedtls_x509_crt_parse(&chain, concatenatedPemCerts, concatenatedPemCerts.count) != 0 {
             print("mbedtls_x509_crt_parse failed!")
             return
         }
+    }
+    
+    public static func configureClientCert() {
+        mbedtls_ssl_conf_own_cert(&sslConfig, &certChain1, nil)
+    }
+    
+    public static func configureRootCACert() {
+        mbedtls_ssl_conf_ca_chain(&sslConfig, &certChain2, nil)
     }
     
 }
