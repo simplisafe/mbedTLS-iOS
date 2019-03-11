@@ -11,8 +11,8 @@ import libmbedtls
 
 public class mbedTLS {
     
-    public enum HandshakeSteps: Int {
-        case clientHello = 0
+    public enum HandshakeSteps: Int32 {
+        case helloRequest = 0, clientHello
         case serverHello, serverCertificate, serverKeyExchange, serverCertificateRequest, serverHelloDone
         case clientCertificate, clientKeyExchange, certificateVerify, clientFinished
         case serverFinished
@@ -35,7 +35,6 @@ public class mbedTLS {
     public static var certChain1: mbedtls_x509_crt!
     public static var certChain2: mbedtls_x509_crt!
     
-    public static var writeCallbackBuffer: [UInt8]?
     public static var readCallbackBuffer: [UInt8]?
     
     public typealias sslWriteCallback = (UnsafeMutableRawPointer?, UnsafePointer<UInt8>?, Int) ->  Int32
@@ -44,7 +43,7 @@ public class mbedTLS {
     static var sslWriteCallbackFunc: sslWriteCallback!
     static var sslReadCallbackFunc: sslReadCallback!
     
-    public static var currentHandshakeState: HandshakeSteps = .clientHello
+    public static var currentHandshakeState: HandshakeSteps = .helloRequest
     
     static var ciphers: Array<Int32>!
     
@@ -111,25 +110,47 @@ public class mbedTLS {
             return
         }
         
-        if mbedTLS.currentHandshakeState == .clientHello {
+        if mbedTLS.currentHandshakeState == .helloRequest {
             mbedtls_ssl_handshake_client_step(&sslContext)
             mbedtls_ssl_handshake_client_step(&sslContext)
-            mbedTLS.currentHandshakeState = HandshakeSteps(rawValue: mbedTLS.currentHandshakeState.rawValue + 1)!
+            mbedTLS.currentHandshakeState = HandshakeSteps(rawValue: mbedTLS.currentHandshakeState.rawValue + 2)!
         } else {
-            mbedtls_ssl_handshake_client_step(&sslContext)
-            mbedTLS.currentHandshakeState = HandshakeSteps(rawValue: mbedTLS.currentHandshakeState.rawValue + 1)!
+            if mbedtls_ssl_handshake_client_step(&sslContext) == 0 {
+                mbedTLS.currentHandshakeState = HandshakeSteps(rawValue: mbedTLS.currentHandshakeState.rawValue + 1)!
+                
+                switch sslContext.state {
+                case HandshakeSteps.serverKeyExchange.rawValue:
+                    sslContext.session_negotiate.pointee.peer_cert.pointee = sslContext.session_negotiate.pointee.peer_cert.pointee.next.pointee
+                case HandshakeSteps.clientCertificate.rawValue...HandshakeSteps.clientFinished.rawValue:
+                    executeNextHandshakeStep()
+                default:
+                    break
+                }
+            }
         }
     }
     
-    public static func parseClientCertificates(_ concatenatedPemCerts: [UInt8], chain: inout mbedtls_x509_crt) {
-        if mbedtls_x509_crt_parse(&chain, concatenatedPemCerts, concatenatedPemCerts.count) != 0 {
-            print("mbedtls_x509_crt_parse failed!")
+    public static func parseDerCertificate(_ derCert: [UInt8], chain: inout mbedtls_x509_crt) {
+        if mbedtls_x509_crt_parse(&chain, derCert, derCert.count) != 0 {
+            print("mbedtls_x509_crt_parse der failed!")
             return
         }
     }
     
-    public static func configureClientCert() {
-        mbedtls_ssl_conf_own_cert(&sslConfig, &certChain1, nil)
+    public static func parsePemCertificates(_ concatenatedPemCerts: String, chain: inout mbedtls_x509_crt) {
+        let certs = Array(concatenatedPemCerts.utf8)
+        let ret = mbedtls_x509_crt_parse(&chain, certs, certs.count)
+        if ret != 0 {
+            print("mbedtls_x509_crt_parse pem failed! \(ret)")
+            return
+        }
+    }
+    
+    public static func configureClientCert(with privateKey: SecKey) {
+        let ret = mbedtls_ssl_conf_own_cert(&sslConfig, &certChain1, nil)
+        if ret != 0 {
+            print("mbedtls_ssl_conf_own_cert failed! \(ret)")
+        }
     }
     
     public static func configureRootCACert() {
