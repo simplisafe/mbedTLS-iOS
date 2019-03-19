@@ -24,6 +24,12 @@ public class mbedTLS {
         case sslProtocol12 = 3
     }
     
+    public enum ECPGroup: UInt32 {
+        case none = 0, secp192r1, secp224r1, secp256r1, secp384r1, secp521r1
+        case bp256r1, bp384r1, bp512r1, curve25519
+        case secp192k1, secp224k1, secp256k1, curve448
+    }
+    
     public enum DebugThresholdLevel: Int {
         case noDebug = 0, error, stateChange, informational, verbose
     }
@@ -34,11 +40,13 @@ public class mbedTLS {
     public static var entropy: mbedtls_entropy_context!
     public static var certChain1: mbedtls_x509_crt!
     public static var certChain2: mbedtls_x509_crt!
+    public static var ecKeyPair: mbedtls_pk_context!
     
     public static var readCallbackBuffer: [UInt8]?
     
     public typealias sslWriteCallback = (UnsafeMutableRawPointer?, UnsafePointer<UInt8>?, Int) ->  Int32
     public typealias sslReadCallback = (UnsafeMutableRawPointer?, UnsafeMutablePointer<UInt8>?, Int) ->  Int32
+    public typealias KeyPair = mbedtls_pk_context
     
     static var sslWriteCallbackFunc: sslWriteCallback!
     static var sslReadCallbackFunc: sslReadCallback!
@@ -47,26 +55,54 @@ public class mbedTLS {
     
     static var ciphers: Array<Int32>!
     
-    public static func setupSSLContext() {
-        sslContext = mbedtls_ssl_context()
-        sslConfig = mbedtls_ssl_config()
-        counterRandomByteGenerator = mbedtls_ctr_drbg_context()
-        entropy = mbedtls_entropy_context()
-        certChain1 = mbedtls_x509_crt()
-        certChain2 = mbedtls_x509_crt()
+    public init() {
+        mbedTLS.sslContext = mbedtls_ssl_context()
+        mbedTLS.sslConfig = mbedtls_ssl_config()
+        mbedTLS.counterRandomByteGenerator = mbedtls_ctr_drbg_context()
+        mbedTLS.entropy = mbedtls_entropy_context()
+        mbedTLS.certChain1 = mbedtls_x509_crt()
+        mbedTLS.certChain2 = mbedtls_x509_crt()
         
-        mbedtls_ssl_init(&sslContext)
-        mbedtls_ssl_config_init(&sslConfig)
-        mbedtls_ctr_drbg_init(&counterRandomByteGenerator)
-        mbedtls_entropy_init(&entropy)
-        mbedtls_x509_crt_init(&certChain1)
-        mbedtls_x509_crt_init(&certChain2)
+        mbedtls_ssl_init(&mbedTLS.sslContext)
+        mbedtls_ssl_config_init(&mbedTLS.sslConfig)
+        mbedtls_ctr_drbg_init(&mbedTLS.counterRandomByteGenerator)
+        mbedtls_entropy_init(&mbedTLS.entropy)
+        mbedtls_x509_crt_init(&mbedTLS.certChain1)
+        mbedtls_x509_crt_init(&mbedTLS.certChain2)
         
-        if mbedtls_ctr_drbg_seed(&counterRandomByteGenerator, mbedtls_entropy_func, &entropy, nil, 0) != 0 {
+        if mbedtls_ctr_drbg_seed(&mbedTLS.counterRandomByteGenerator, mbedtls_entropy_func, &mbedTLS.entropy, nil, 0) != 0 {
             print("mbedtls_ctr_drbg_seed failed!")
             return
         }
-        
+    }
+    
+    public static func generateECKeyPair(ecpGroup: ECPGroup) -> KeyPair {
+        ecKeyPair = mbedtls_pk_context()
+        mbedtls_pk_init(&ecKeyPair)
+        mbedtls_pk_setup(&ecKeyPair, mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY))
+        mbedtls_ecp_gen_key(mbedtls_ecp_group_id(rawValue: ecpGroup.rawValue), mbedtls_pk_ec(ecKeyPair), mbedtls_ctr_drbg_random, &counterRandomByteGenerator)
+        return ecKeyPair
+    }
+    
+    public static func generateCSR(subject: String, keyPair: inout KeyPair) -> String? {
+        var csrContext = mbedtls_x509write_csr()
+        mbedtls_x509write_csr_init(&csrContext)
+        var signedSubjectBytes = subject.utf8.map { Int8(bitPattern: $0) }
+        mbedtls_x509write_csr_set_subject_name(&csrContext, &signedSubjectBytes)
+        mbedtls_x509write_csr_set_key(&csrContext, &keyPair)
+        mbedtls_x509write_csr_set_md_alg(&csrContext, MBEDTLS_MD_SHA256)
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        if mbedtls_x509write_csr_pem(&csrContext, &buffer, 4096, mbedtls_ctr_drbg_random, &counterRandomByteGenerator) == 0 {
+            let csrBytes = buffer.filter( { $0 != 0 } )
+            let csrstring = String(bytes: csrBytes, encoding: .utf8)
+            return csrstring
+        } else {
+            print("FAILED!")
+            return nil
+        }
+    }
+    
+    public static func setupSSLContext() {
         if mbedtls_ssl_config_defaults(&sslConfig, MBEDTLS_SSL_IS_CLIENT, MBEDTLS_SSL_TRANSPORT_STREAM, MBEDTLS_SSL_PRESET_DEFAULT) != 0 {
             print("mbedtls_ssl_config_defaults failed!")
             return
@@ -146,8 +182,8 @@ public class mbedTLS {
         }
     }
     
-    public static func configureClientCert(with privateKey: SecKey) {
-        let ret = mbedtls_ssl_conf_own_cert(&sslConfig, &certChain1, nil)
+    public static func configureClientCert(with privateKey: inout KeyPair) {
+        let ret = mbedtls_ssl_conf_own_cert(&sslConfig, &certChain1, &privateKey)
         if ret != 0 {
             print("mbedtls_ssl_conf_own_cert failed! \(ret)")
         }
