@@ -14,8 +14,8 @@ public class mbedTLS {
     public enum HandshakeSteps: Int32 {
         case helloRequest = 0, clientHello
         case serverHello, serverCertificate, serverKeyExchange, serverCertificateRequest, serverHelloDone
-        case clientCertificate, clientKeyExchange, certificateVerify, clientFinished
-        case serverFinished
+        case clientCertificate, clientKeyExchange, certificateVerify, clientChangeCipherSpec, clientFinished
+        case serverChangeCipherSpec, serverFinished
     }
     
     public enum SSLProtocolVersion: Int32 {
@@ -62,6 +62,7 @@ public class mbedTLS {
         mbedTLS.entropy = mbedtls_entropy_context()
         mbedTLS.certChain1 = mbedtls_x509_crt()
         mbedTLS.certChain2 = mbedtls_x509_crt()
+        mbedTLS.ecKeyPair = mbedtls_pk_context()
         
         mbedtls_ssl_init(&mbedTLS.sslContext)
         mbedtls_ssl_config_init(&mbedTLS.sslConfig)
@@ -69,6 +70,7 @@ public class mbedTLS {
         mbedtls_entropy_init(&mbedTLS.entropy)
         mbedtls_x509_crt_init(&mbedTLS.certChain1)
         mbedtls_x509_crt_init(&mbedTLS.certChain2)
+        mbedtls_pk_init(&mbedTLS.ecKeyPair)
         
         if mbedtls_ctr_drbg_seed(&mbedTLS.counterRandomByteGenerator, mbedtls_entropy_func, &mbedTLS.entropy, nil, 0) != 0 {
             print("mbedtls_ctr_drbg_seed failed!")
@@ -77,9 +79,8 @@ public class mbedTLS {
     }
     
     public static func generateECKeyPair(ecpGroup: ECPGroup) -> KeyPair {
-        ecKeyPair = mbedtls_pk_context()
-        mbedtls_pk_init(&ecKeyPair)
-        mbedtls_pk_setup(&ecKeyPair, mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY))
+        mbedtls_pk_init(&mbedTLS.ecKeyPair)
+        mbedtls_pk_setup(&mbedTLS.ecKeyPair, mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY))
         mbedtls_ecp_gen_key(mbedtls_ecp_group_id(rawValue: ecpGroup.rawValue), mbedtls_pk_ec(ecKeyPair), mbedtls_ctr_drbg_random, &counterRandomByteGenerator)
         return ecKeyPair
     }
@@ -97,7 +98,6 @@ public class mbedTLS {
             let csrstring = String(bytes: csrBytes, encoding: .utf8)
             return csrstring
         } else {
-            print("FAILED!")
             return nil
         }
     }
@@ -191,6 +191,28 @@ public class mbedTLS {
     
     public static func configureRootCACert() {
         mbedtls_ssl_conf_ca_chain(&sslConfig, &certChain2, nil)
+    }
+    
+    public static func getDERFromKeyPair(_ keyPair: inout KeyPair) -> [UInt8]? {
+        var buffer = [UInt8](repeating: 0, count: 1024)
+        let ret = mbedtls_pk_write_key_der(&keyPair, &buffer, 1024)
+        if ret >= 0 {
+            let bufferStart = buffer.count - Int(ret)
+            return Array<UInt8>(buffer[bufferStart...])
+        } else {
+            return nil
+        }
+    }
+    
+    public static func parseKeyPairFromDER(_ bytes: inout [UInt8]) -> Bool {
+        mbedTLS.ecKeyPair = mbedtls_pk_context()
+        mbedtls_pk_init(&mbedTLS.ecKeyPair)
+        let ret = mbedtls_pk_parse_key(&mbedTLS.ecKeyPair, &bytes, bytes.count, nil, 0)
+        if ret == 0 {
+            return true
+        } else {
+            return false
+        }
     }
     
 }
