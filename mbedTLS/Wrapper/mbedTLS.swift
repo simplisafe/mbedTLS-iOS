@@ -15,7 +15,7 @@ public class mbedTLS {
         case helloRequest = 0, clientHello
         case serverHello, serverCertificate, serverKeyExchange, serverCertificateRequest, serverHelloDone
         case clientCertificate, clientKeyExchange, certificateVerify, clientChangeCipherSpec, clientFinished
-        case serverChangeCipherSpec, serverFinished
+        case serverChangeCipherSpec, serverFinished, flushBuffers, handshakeWrapup, handshakeCompleted
     }
     
     public enum SSLProtocolVersion: Int32 {
@@ -142,10 +142,6 @@ public class mbedTLS {
     }
     
     public static func executeNextHandshakeStep() {
-        if mbedTLS.currentHandshakeState == .serverFinished {
-            return
-        }
-        
         if mbedTLS.currentHandshakeState == .helloRequest {
             mbedtls_ssl_handshake_client_step(&sslContext)
             mbedtls_ssl_handshake_client_step(&sslContext)
@@ -157,7 +153,7 @@ public class mbedTLS {
                 switch sslContext.state {
                 case HandshakeSteps.serverKeyExchange.rawValue:
                     sslContext.session_negotiate.pointee.peer_cert.pointee = sslContext.session_negotiate.pointee.peer_cert.pointee.next.pointee
-                case HandshakeSteps.clientCertificate.rawValue...HandshakeSteps.clientFinished.rawValue:
+                case HandshakeSteps.clientCertificate.rawValue...HandshakeSteps.clientFinished.rawValue, HandshakeSteps.flushBuffers.rawValue, HandshakeSteps.handshakeWrapup.rawValue:
                     executeNextHandshakeStep()
                 default:
                     break
