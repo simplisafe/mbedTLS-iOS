@@ -9,13 +9,29 @@
 import Foundation
 import libmbedtls
 
+public protocol mbedTLSDelegate {
+    func handshakeCompleted()
+}
+
 public class mbedTLS {
     
-    public enum HandshakeSteps: Int32 {
+    public static var delegate: mbedTLSDelegate?
+    
+    public enum HandshakeSteps: Int, Strideable {
         case helloRequest = 0, clientHello
         case serverHello, serverCertificate, serverKeyExchange, serverCertificateRequest, serverHelloDone
         case clientCertificate, clientKeyExchange, certificateVerify, clientChangeCipherSpec, clientFinished
         case serverChangeCipherSpec, serverFinished, flushBuffers, handshakeWrapup, handshakeCompleted
+        
+        public typealias Stride = Int
+        
+        public func distance(to other: mbedTLS.HandshakeSteps) -> Int {
+            return Stride(other.rawValue) - Stride(self.rawValue)
+        }
+        
+        public func advanced(by n: Int) -> mbedTLS.HandshakeSteps {
+            return mbedTLS.HandshakeSteps(rawValue: self.rawValue + n)!
+        }
     }
     
     public enum SSLProtocolVersion: Int32 {
@@ -146,14 +162,16 @@ public class mbedTLS {
             mbedtls_ssl_handshake_client_step(&sslContext)
             mbedtls_ssl_handshake_client_step(&sslContext)
             mbedTLS.currentHandshakeState = HandshakeSteps(rawValue: mbedTLS.currentHandshakeState.rawValue + 2)!
+        } else if mbedTLS.currentHandshakeState == .handshakeCompleted {
+            delegate?.handshakeCompleted()
         } else {
             if mbedtls_ssl_handshake_client_step(&sslContext) == 0 {
                 mbedTLS.currentHandshakeState = HandshakeSteps(rawValue: mbedTLS.currentHandshakeState.rawValue + 1)!
                 
-                switch sslContext.state {
-                case HandshakeSteps.serverKeyExchange.rawValue:
+                switch mbedTLS.currentHandshakeState {
+                case .serverKeyExchange:
                     sslContext.session_negotiate.pointee.peer_cert.pointee = sslContext.session_negotiate.pointee.peer_cert.pointee.next.pointee
-                case HandshakeSteps.clientCertificate.rawValue...HandshakeSteps.clientFinished.rawValue, HandshakeSteps.flushBuffers.rawValue, HandshakeSteps.handshakeWrapup.rawValue:
+                case HandshakeSteps.clientCertificate...HandshakeSteps.clientFinished, HandshakeSteps.flushBuffers...HandshakeSteps.handshakeCompleted:
                     executeNextHandshakeStep()
                 default:
                     break
@@ -208,6 +226,24 @@ public class mbedTLS {
             return true
         } else {
             return false
+        }
+    }
+    
+    public static func write(_ data: inout [UInt8]) {
+        let ret = mbedtls_ssl_write(&sslContext, &data, data.count)
+        if data.count - Int(ret) != 0 {
+            print("mbedtls_ssl_write could not write all data - \(ret)")
+        } else if ret < 0 {
+            print("mbedtls_ssl_write failed! - \(ret)")
+        }
+    }
+    
+    public static func read(_ data: inout [UInt8]) {
+        let ret = mbedtls_ssl_read(&sslContext, &data, data.count)
+        if data.count - Int(ret) != 0 {
+            print("mbedtls_ssl_read could not read all data - \(ret)")
+        } else if ret < 0 {
+            print("mbedtls_ssl_read failed! - \(ret)")
         }
     }
     

@@ -1,7 +1,7 @@
 Pod::Spec.new do |s|
 
 s.name         = "mbedTLS"
-s.version      = "0.1.4"
+s.version      = "0.1.5"
 s.summary      = "An iOS port of mbed TLS."
 
 s.description  = <<-DESC
