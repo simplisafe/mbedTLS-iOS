@@ -76,22 +76,27 @@ public class mbedTLS {
         mbedTLS.sslConfig = mbedtls_ssl_config()
         mbedTLS.counterRandomByteGenerator = mbedtls_ctr_drbg_context()
         mbedTLS.entropy = mbedtls_entropy_context()
-        mbedTLS.certChain1 = mbedtls_x509_crt()
-        mbedTLS.certChain2 = mbedtls_x509_crt()
         mbedTLS.ecKeyPair = mbedtls_pk_context()
         
         mbedtls_ssl_init(&mbedTLS.sslContext)
         mbedtls_ssl_config_init(&mbedTLS.sslConfig)
         mbedtls_ctr_drbg_init(&mbedTLS.counterRandomByteGenerator)
         mbedtls_entropy_init(&mbedTLS.entropy)
-        mbedtls_x509_crt_init(&mbedTLS.certChain1)
-        mbedtls_x509_crt_init(&mbedTLS.certChain2)
         mbedtls_pk_init(&mbedTLS.ecKeyPair)
         
         if mbedtls_ctr_drbg_seed(&mbedTLS.counterRandomByteGenerator, mbedtls_entropy_func, &mbedTLS.entropy, nil, 0) != 0 {
             print("mbedtls_ctr_drbg_seed failed!")
             return
         }
+        
+        mbedTLS.initializeCertChain()
+    }
+    
+    public static func initializeCertChain() {
+        mbedTLS.certChain1 = mbedtls_x509_crt()
+        mbedTLS.certChain2 = mbedtls_x509_crt()
+        mbedtls_x509_crt_init(&mbedTLS.certChain1)
+        mbedtls_x509_crt_init(&mbedTLS.certChain2)
     }
     
     public static func generateECKeyPair(ecpGroup: ECPGroup) -> KeyPair {
