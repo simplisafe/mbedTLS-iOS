@@ -247,13 +247,14 @@ public class mbedTLS {
         }
     }
     
-    public static func read(_ data: inout [UInt8], completion: (() -> Void)? = nil) {
-        let ret = mbedtls_ssl_read(&sslContext, &data, data.count)
+    public static func read(_ data: [UInt8], completion: (([UInt8]) -> Void)? = nil) {
+        var buffer = [UInt8](repeating: 0, count: data.count)
+        let ret = mbedtls_ssl_read(&sslContext, &buffer, data.count)
         if ret < 0 {
             print("mbedtls_ssl_read failed! - \(ret)")
         } else {
             if completion != nil {
-                completion!()
+                completion!(buffer)
             }
         }
     }
