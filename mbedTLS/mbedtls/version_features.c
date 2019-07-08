@@ -31,7 +31,7 @@
 
 #include <string.h>
 
-static const char *features[] = {
+static const char * const features[] = {
 #if defined(MBEDTLS_VERSION_FEATURES)
 #if defined(MBEDTLS_HAVE_ASM)
     "MBEDTLS_HAVE_ASM",
@@ -90,6 +90,9 @@ static const char *features[] = {
 #if defined(MBEDTLS_CHECK_PARAMS)
     "MBEDTLS_CHECK_PARAMS",
 #endif /* MBEDTLS_CHECK_PARAMS */
+#if defined(MBEDTLS_CHECK_PARAMS_ASSERT)
+    "MBEDTLS_CHECK_PARAMS_ASSERT",
+#endif /* MBEDTLS_CHECK_PARAMS_ASSERT */
 #if defined(MBEDTLS_TIMING_ALT)
     "MBEDTLS_TIMING_ALT",
 #endif /* MBEDTLS_TIMING_ALT */
@@ -351,6 +354,9 @@ static const char *features[] = {
 #if defined(MBEDTLS_ECP_RESTARTABLE)
     "MBEDTLS_ECP_RESTARTABLE",
 #endif /* MBEDTLS_ECP_RESTARTABLE */
+#if defined(MBEDTLS_ECDH_LEGACY_CONTEXT)
+    "MBEDTLS_ECDH_LEGACY_CONTEXT",
+#endif /* MBEDTLS_ECDH_LEGACY_CONTEXT */
 #if defined(MBEDTLS_ECDSA_DETERMINISTIC)
     "MBEDTLS_ECDSA_DETERMINISTIC",
 #endif /* MBEDTLS_ECDSA_DETERMINISTIC */
@@ -429,9 +435,9 @@ static const char *features[] = {
 #if defined(MBEDTLS_PSA_CRYPTO_SPM)
     "MBEDTLS_PSA_CRYPTO_SPM",
 #endif /* MBEDTLS_PSA_CRYPTO_SPM */
-#if defined(MBEDTLS_PSA_HAS_ITS_IO)
-    "MBEDTLS_PSA_HAS_ITS_IO",
-#endif /* MBEDTLS_PSA_HAS_ITS_IO */
+#if defined(MBEDTLS_PSA_INJECT_ENTROPY)
+    "MBEDTLS_PSA_INJECT_ENTROPY",
+#endif /* MBEDTLS_PSA_INJECT_ENTROPY */
 #if defined(MBEDTLS_RSA_NO_CRT)
     "MBEDTLS_RSA_NO_CRT",
 #endif /* MBEDTLS_RSA_NO_CRT */
@@ -444,6 +450,9 @@ static const char *features[] = {
 #if defined(MBEDTLS_SSL_ALL_ALERT_MESSAGES)
     "MBEDTLS_SSL_ALL_ALERT_MESSAGES",
 #endif /* MBEDTLS_SSL_ALL_ALERT_MESSAGES */
+#if defined(MBEDTLS_SSL_DTLS_CONNECTION_ID)
+    "MBEDTLS_SSL_DTLS_CONNECTION_ID",
+#endif /* MBEDTLS_SSL_DTLS_CONNECTION_ID */
 #if defined(MBEDTLS_SSL_ASYNC_PRIVATE)
     "MBEDTLS_SSL_ASYNC_PRIVATE",
 #endif /* MBEDTLS_SSL_ASYNC_PRIVATE */
@@ -543,6 +552,9 @@ static const char *features[] = {
 #if defined(MBEDTLS_X509_ALLOW_UNSUPPORTED_CRITICAL_EXTENSION)
     "MBEDTLS_X509_ALLOW_UNSUPPORTED_CRITICAL_EXTENSION",
 #endif /* MBEDTLS_X509_ALLOW_UNSUPPORTED_CRITICAL_EXTENSION */
+#if defined(MBEDTLS_X509_TRUSTED_CERTIFICATE_CALLBACK)
+    "MBEDTLS_X509_TRUSTED_CERTIFICATE_CALLBACK",
+#endif /* MBEDTLS_X509_TRUSTED_CERTIFICATE_CALLBACK */
 #if defined(MBEDTLS_X509_CHECK_KEY_USAGE)
     "MBEDTLS_X509_CHECK_KEY_USAGE",
 #endif /* MBEDTLS_X509_CHECK_KEY_USAGE */
@@ -708,12 +720,9 @@ static const char *features[] = {
 #if defined(MBEDTLS_PSA_CRYPTO_STORAGE_C)
     "MBEDTLS_PSA_CRYPTO_STORAGE_C",
 #endif /* MBEDTLS_PSA_CRYPTO_STORAGE_C */
-#if defined(MBEDTLS_PSA_CRYPTO_STORAGE_FILE_C)
-    "MBEDTLS_PSA_CRYPTO_STORAGE_FILE_C",
-#endif /* MBEDTLS_PSA_CRYPTO_STORAGE_FILE_C */
-#if defined(MBEDTLS_PSA_CRYPTO_STORAGE_ITS_C)
-    "MBEDTLS_PSA_CRYPTO_STORAGE_ITS_C",
-#endif /* MBEDTLS_PSA_CRYPTO_STORAGE_ITS_C */
+#if defined(MBEDTLS_PSA_ITS_FILE_C)
+    "MBEDTLS_PSA_ITS_FILE_C",
+#endif /* MBEDTLS_PSA_ITS_FILE_C */
 #if defined(MBEDTLS_RIPEMD160_C)
     "MBEDTLS_RIPEMD160_C",
 #endif /* MBEDTLS_RIPEMD160_C */
@@ -786,7 +795,7 @@ static const char *features[] = {
 
 int mbedtls_version_check_feature( const char *feature )
 {
-    const char **idx = features;
+    const char * const *idx = features;
 
     if( *idx == NULL )
         return( -2 );

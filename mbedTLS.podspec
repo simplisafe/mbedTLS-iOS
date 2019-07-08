@@ -1,7 +1,7 @@
 Pod::Spec.new do |s|
 
 s.name         = "mbedTLS"
-s.version      = "0.1.7"
+s.version      = "0.2.0"
 s.summary      = "An iOS port of mbed TLS."
 
 s.description  = <<-DESC
@@ -14,7 +14,7 @@ s.license      = { :type => "MIT", :file => "LICENSE" }
 
 s.author             = "Siddarth Gandhi"
 
-s.ios.deployment_target = "9.0"
+s.ios.deployment_target = "10.0"
 
 s.source       = { :git => "https://github.com/simplisafe/mbedTLS-iOS.git", :tag => "#{s.version}" }
 s.source_files  = "mbedTLS/*.{swift,h}", "mbedTLS/mbedtls/*.{h,c}", "mbedTLS/Wrapper/*.{swift,c,h}"

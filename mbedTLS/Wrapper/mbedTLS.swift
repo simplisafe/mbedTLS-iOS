@@ -241,22 +241,17 @@ public class mbedTLS {
         } else if data.count - Int(ret) != 0 {
             print("mbedtls_ssl_write could not write all data - \(ret)")
         } else {
-            if completion != nil {
-                completion!()
-            }
+            completion?()
         }
     }
     
-    public static func read(_ data: [UInt8], completion: (([UInt8]) -> Void)? = nil) {
+    public static func read(_ data: [UInt8], completion: (([UInt8]) -> [UInt8]?)? = nil) -> [UInt8]? {
         var buffer = [UInt8](repeating: 0, count: data.count)
         let ret = mbedtls_ssl_read(&sslContext, &buffer, data.count)
         if ret < 0 {
             print("mbedtls_ssl_read failed! - \(ret)")
-        } else {
-            if completion != nil {
-                completion!(buffer)
-            }
         }
+        return completion?(buffer)
     }
     
 }
