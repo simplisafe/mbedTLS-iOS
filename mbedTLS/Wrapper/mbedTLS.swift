@@ -11,6 +11,7 @@ import libmbedtls
 
 public protocol mbedTLSDelegate {
     func handshakeCompleted()
+    func mbedtlsError(_ error: mbedTLS.mbedTLSError)
 }
 
 public class mbedTLS {
@@ -49,6 +50,23 @@ public class mbedTLS {
     public enum DebugThresholdLevel: Int {
         case noDebug = 0, error, stateChange, informational, verbose
     }
+
+    public enum mbedTLSError: String, Error {
+        case entropy = "Entropy setup failed. (mbedtls_ctr_drbg_seed)"
+        case privateKeySetup = "Initializing PK Context failed. (mbedtls_pk_setup)"
+        case keyPairGeneration = "ECP Key generation failed. (mbedtls_ecp_gen_key)"
+        case parsingSubjectName = "Failed to parse CSR subject name. (mbedtls_x509write_csr_set_subject_name)"
+        case csrGeneration = "Failed to generate a CSR. (mbedtls_x509write_csr_pem)"
+        case sslConfiguration = "Loading SSL configuration values failed. (mbedtls_ssl_config_defaults)"
+        case sslSetup = "Setting up SSL Context failed. (mbedtls_ssl_setup)"
+        case handshakeStep = "Failed to execute handshake step. (mbedtls_ssl_handshake_client_step)"
+        case parseCertificate = "Parsing certificates failed. (mbedtls_x509_crt_parse)"
+        case configureClientCertificate = "Configuring client certificate failed. (mbedtls_ssl_conf_own_cert)"
+        case keyPairToDER = "Failed to write DER bytes from the key pair. (mbedtls_pk_write_key_der)"
+        case parseKeyPair = "Parsing key pair failed. (mbedtls_pk_parse_key)"
+        case write = "Write failed. (mbedtls_ssl_write)"
+        case read = "Read failed. (mbedtls_ssl_read)"
+    }
     
     public static var sslContext: mbedtls_ssl_context!
     public static var sslConfig: mbedtls_ssl_config!
@@ -71,7 +89,7 @@ public class mbedTLS {
     
     static var ciphers: Array<Int32>!
     
-    public init() {
+    public init() throws {
         mbedTLS.sslContext = mbedtls_ssl_context()
         mbedTLS.sslConfig = mbedtls_ssl_config()
         mbedTLS.counterRandomByteGenerator = mbedtls_ctr_drbg_context()
@@ -83,11 +101,9 @@ public class mbedTLS {
         mbedtls_ctr_drbg_init(&mbedTLS.counterRandomByteGenerator)
         mbedtls_entropy_init(&mbedTLS.entropy)
         mbedtls_pk_init(&mbedTLS.ecKeyPair)
-        
-        if mbedtls_ctr_drbg_seed(&mbedTLS.counterRandomByteGenerator, mbedtls_entropy_func, &mbedTLS.entropy, nil, 0) != 0 {
-            print("mbedtls_ctr_drbg_seed failed!")
-            return
-        }
+
+        let ret = mbedtls_ctr_drbg_seed(&mbedTLS.counterRandomByteGenerator, mbedtls_entropy_func, &mbedTLS.entropy, nil, 0)
+        if ret != 0 { throw mbedTLSError.entropy }
         
         mbedTLS.initializeCertChain()
     }
@@ -99,42 +115,42 @@ public class mbedTLS {
         mbedtls_x509_crt_init(&mbedTLS.certChain2)
     }
     
-    public static func generateECKeyPair(ecpGroup: ECPGroup) -> KeyPair {
+    public static func generateECKeyPair(ecpGroup: ECPGroup) throws -> KeyPair {
         mbedtls_pk_init(&mbedTLS.ecKeyPair)
-        mbedtls_pk_setup(&mbedTLS.ecKeyPair, mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY))
-        mbedtls_ecp_gen_key(mbedtls_ecp_group_id(rawValue: ecpGroup.rawValue), mbedtls_pk_ec(ecKeyPair), mbedtls_ctr_drbg_random, &counterRandomByteGenerator)
+        let privateKeySetup = mbedtls_pk_setup(&mbedTLS.ecKeyPair, mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY))
+        if privateKeySetup != 0 { throw mbedTLSError.privateKeySetup }
+        let keyPairGenerator = mbedtls_ecp_gen_key(mbedtls_ecp_group_id(rawValue: ecpGroup.rawValue), mbedtls_pk_ec(ecKeyPair), mbedtls_ctr_drbg_random, &counterRandomByteGenerator)
+        if keyPairGenerator != 0 { throw mbedTLSError.keyPairGeneration }
         return ecKeyPair
     }
     
-    public static func generateCSR(subject: String, keyPair: inout KeyPair) -> String? {
+    public static func generateCSR(subject: String, keyPair: inout KeyPair) throws -> String {
         var csrContext = mbedtls_x509write_csr()
         mbedtls_x509write_csr_init(&csrContext)
         var signedSubjectBytes = subject.utf8.map { Int8(bitPattern: $0) }
-        mbedtls_x509write_csr_set_subject_name(&csrContext, &signedSubjectBytes)
+        let setSubjectName = mbedtls_x509write_csr_set_subject_name(&csrContext, &signedSubjectBytes)
+        if setSubjectName != 0 { throw mbedTLSError.parsingSubjectName }
         mbedtls_x509write_csr_set_key(&csrContext, &keyPair)
         mbedtls_x509write_csr_set_md_alg(&csrContext, MBEDTLS_MD_SHA256)
         var buffer = [UInt8](repeating: 0, count: 4096)
-        if mbedtls_x509write_csr_pem(&csrContext, &buffer, 4096, mbedtls_ctr_drbg_random, &counterRandomByteGenerator) == 0 {
+        let csrAsPemString = mbedtls_x509write_csr_pem(&csrContext, &buffer, 4096, mbedtls_ctr_drbg_random, &counterRandomByteGenerator)
+        if csrAsPemString == 0 {
             let csrBytes = buffer.filter( { $0 != 0 } )
-            let csrstring = String(bytes: csrBytes, encoding: .utf8)
+            guard let csrstring = String(bytes: csrBytes, encoding: .utf8) else { throw mbedTLSError.csrGeneration }
             return csrstring
         } else {
-            return nil
+            throw mbedTLSError.csrGeneration
         }
     }
     
-    public static func setupSSLContext() {
-        if mbedtls_ssl_config_defaults(&sslConfig, MBEDTLS_SSL_IS_CLIENT, MBEDTLS_SSL_TRANSPORT_STREAM, MBEDTLS_SSL_PRESET_DEFAULT) != 0 {
-            print("mbedtls_ssl_config_defaults failed!")
-            return
-        }
+    public static func setupSSLContext() throws {
+        let configureSSL = mbedtls_ssl_config_defaults(&sslConfig, MBEDTLS_SSL_IS_CLIENT, MBEDTLS_SSL_TRANSPORT_STREAM, MBEDTLS_SSL_PRESET_DEFAULT)
+        if configureSSL != 0 { throw mbedTLSError.sslConfiguration }
         
         mbedtls_ssl_conf_rng(&sslConfig, mbedtls_ctr_drbg_random, &counterRandomByteGenerator)
 
-        if mbedtls_ssl_setup(&sslContext, &sslConfig) != 0 {
-            print("mbedtls_ssl_setup failed!")
-            return
-        }
+        let setupSSL = mbedtls_ssl_setup(&sslContext, &sslConfig)
+        if setupSSL != 0 { throw mbedTLSError.sslSetup }
     }
     
     public static func setIOFuncs(contextParameter: inout String, _ read: @escaping sslReadCallback, _ write: @escaping sslWriteCallback) {
@@ -162,94 +178,95 @@ public class mbedTLS {
         mbedtls_ssl_conf_dbg(&sslConfig, debug_msg, stdout)
     }
     
-    public static func executeNextHandshakeStep() {
+    public static func executeNextHandshakeStep() throws {
         if mbedTLS.currentHandshakeState == .helloRequest {
-            mbedtls_ssl_handshake_client_step(&sslContext)
-            mbedtls_ssl_handshake_client_step(&sslContext)
-            mbedTLS.currentHandshakeState = HandshakeSteps(rawValue: mbedTLS.currentHandshakeState.rawValue + 2)!
+            _ = try handshakeStep()
+            _ = try handshakeStep()
         } else if mbedTLS.currentHandshakeState == .handshakeCompleted {
             delegate?.handshakeCompleted()
         } else {
-            if mbedtls_ssl_handshake_client_step(&sslContext) == 0 {
-                mbedTLS.currentHandshakeState = HandshakeSteps(rawValue: mbedTLS.currentHandshakeState.rawValue + 1)!
-                
+            if try handshakeStep() {
                 switch mbedTLS.currentHandshakeState {
                 case .serverKeyExchange:
                     sslContext.session_negotiate.pointee.peer_cert.pointee = sslContext.session_negotiate.pointee.peer_cert.pointee.next.pointee
                 case HandshakeSteps.clientCertificate...HandshakeSteps.clientFinished, HandshakeSteps.flushBuffers...HandshakeSteps.handshakeCompleted:
-                    executeNextHandshakeStep()
+                    try executeNextHandshakeStep()
                 default:
                     break
                 }
             }
         }
     }
-    
-    public static func parseDerCertificate(_ derCert: [UInt8], chain: inout mbedtls_x509_crt) {
-        if mbedtls_x509_crt_parse(&chain, derCert, derCert.count) != 0 {
-            print("mbedtls_x509_crt_parse der failed!")
-            return
+
+    private static func handshakeStep() throws -> Bool {
+        let ret = mbedtls_ssl_handshake_client_step(&sslContext)
+        if ret == 0 {
+            guard let currentHandshakeState = HandshakeSteps(rawValue: mbedTLS.currentHandshakeState.rawValue + 1) else { return false }
+            mbedTLS.currentHandshakeState = currentHandshakeState
+            return true
+        } else {
+            throw mbedTLSError.handshakeStep
         }
     }
     
-    public static func parsePemCertificates(_ concatenatedPemCerts: String, chain: inout mbedtls_x509_crt) {
-        let certs = Array(concatenatedPemCerts.utf8)
-        let ret = mbedtls_x509_crt_parse(&chain, certs, certs.count)
-        if ret != 0 {
-            print("mbedtls_x509_crt_parse pem failed! \(ret)")
-            return
-        }
+    public static func parseDerCertificate(_ derCert: [UInt8], chain: inout mbedtls_x509_crt) throws {
+        let ret = mbedtls_x509_crt_parse(&chain, derCert, derCert.count)
+        if ret != 0 { throw mbedTLSError.parseCertificate }
     }
     
-    public static func configureClientCert(with privateKey: inout KeyPair) {
+    public static func parsePemCertificates(_ concatenatedPemCerts: String, chain: inout mbedtls_x509_crt) throws {
+        let certificates = Array(concatenatedPemCerts.utf8)
+        let ret = mbedtls_x509_crt_parse(&chain, certificates, certificates.count)
+        if ret != 0 { throw mbedTLSError.parseCertificate }
+    }
+    
+    public static func configureClientCert(with privateKey: inout KeyPair) throws {
         let ret = mbedtls_ssl_conf_own_cert(&sslConfig, &certChain1, &privateKey)
-        if ret != 0 {
-            print("mbedtls_ssl_conf_own_cert failed! \(ret)")
-        }
+        if ret != 0 { throw mbedTLSError.configureClientCertificate }
     }
     
     public static func configureRootCACert() {
         mbedtls_ssl_conf_ca_chain(&sslConfig, &certChain2, nil)
     }
     
-    public static func getDERFromKeyPair(_ keyPair: inout KeyPair) -> [UInt8]? {
+    public static func getDERFromKeyPair(_ keyPair: inout KeyPair) throws -> [UInt8] {
         var buffer = [UInt8](repeating: 0, count: 1024)
         let ret = mbedtls_pk_write_key_der(&keyPair, &buffer, 1024)
         if ret >= 0 {
             let bufferStart = buffer.count - Int(ret)
             return Array<UInt8>(buffer[bufferStart...])
         } else {
-            return nil
+            throw mbedTLSError.keyPairToDER
         }
     }
     
-    public static func parseKeyPairFromDER(_ bytes: inout [UInt8]) -> Bool {
+    public static func parseKeyPairFromDER(_ bytes: inout [UInt8]) throws -> Bool {
         mbedTLS.ecKeyPair = mbedtls_pk_context()
         mbedtls_pk_init(&mbedTLS.ecKeyPair)
         let ret = mbedtls_pk_parse_key(&mbedTLS.ecKeyPair, &bytes, bytes.count, nil, 0)
         if ret == 0 {
             return true
         } else {
-            return false
+            throw mbedTLSError.parseKeyPair
         }
     }
     
-    public static func write(_ data: inout [UInt8], completion: (() -> Void)? = nil) {
+    public static func write(_ data: inout [UInt8], completion: (() -> Void)? = nil) throws {
         let ret = mbedtls_ssl_write(&sslContext, &data, data.count)
         if ret < 0 {
-            print("mbedtls_ssl_write failed! - \(ret)")
+            throw mbedTLSError.write
         } else if data.count - Int(ret) != 0 {
-            print("mbedtls_ssl_write could not write all data - \(ret)")
+            throw mbedTLSError.write
         } else {
             completion?()
         }
     }
     
-    public static func read(_ data: [UInt8], completion: (([UInt8]) -> [UInt8]?)? = nil) -> [UInt8]? {
+    public static func read(_ data: [UInt8], completion: (([UInt8]) -> [UInt8]?)? = nil) throws -> [UInt8]? {
         var buffer = [UInt8](repeating: 0, count: data.count)
         let ret = mbedtls_ssl_read(&sslContext, &buffer, data.count)
         if ret < 0 {
-            print("mbedtls_ssl_read failed! - \(ret)")
+            throw mbedTLSError.read
         }
         return completion?(buffer)
     }
