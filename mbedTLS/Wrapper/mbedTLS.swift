@@ -11,7 +11,6 @@ import libmbedtls
 
 public protocol mbedTLSDelegate {
     func handshakeCompleted()
-    func mbedtlsError(_ error: mbedTLS.mbedTLSError)
 }
 
 public class mbedTLS {
