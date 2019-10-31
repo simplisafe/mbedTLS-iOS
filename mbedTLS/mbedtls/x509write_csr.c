@@ -49,16 +49,6 @@
 #include "mbedtls/pem.h"
 #endif
 
-/*
- * For the currently used signature algorithms the buffer to store any signature
- * must be at least of size MAX(MBEDTLS_ECDSA_MAX_LEN, MBEDTLS_MPI_MAX_SIZE)
- */
-#if MBEDTLS_ECDSA_MAX_LEN > MBEDTLS_MPI_MAX_SIZE
-#define SIGNATURE_MAX_SIZE MBEDTLS_ECDSA_MAX_LEN
-#else
-#define SIGNATURE_MAX_SIZE MBEDTLS_MPI_MAX_SIZE
-#endif
-
 void mbedtls_x509write_csr_init( mbedtls_x509write_csr *ctx )
 {
     memset( ctx, 0, sizeof( mbedtls_x509write_csr ) );
@@ -104,13 +94,12 @@ int mbedtls_x509write_csr_set_key_usage( mbedtls_x509write_csr *ctx, unsigned ch
 
     c = buf + 4;
 
-    ret = mbedtls_asn1_write_named_bitstring( &c, buf, &key_usage, 8 );
-    if( ret < 3 || ret > 4 )
+    if( ( ret = mbedtls_asn1_write_bitstring( &c, buf, &key_usage, 7 ) ) != 4 )
         return( ret );
 
     ret = mbedtls_x509write_csr_set_extension( ctx, MBEDTLS_OID_KEY_USAGE,
                                        MBEDTLS_OID_SIZE( MBEDTLS_OID_KEY_USAGE ),
-                                       c, (size_t)ret );
+                                       buf, 4 );
     if( ret != 0 )
         return( ret );
 
@@ -126,13 +115,12 @@ int mbedtls_x509write_csr_set_ns_cert_type( mbedtls_x509write_csr *ctx,
 
     c = buf + 4;
 
-    ret = mbedtls_asn1_write_named_bitstring( &c, buf, &ns_cert_type, 8 );
-    if( ret < 3 || ret > 4 )
+    if( ( ret = mbedtls_asn1_write_bitstring( &c, buf, &ns_cert_type, 8 ) ) != 4 )
         return( ret );
 
     ret = mbedtls_x509write_csr_set_extension( ctx, MBEDTLS_OID_NS_CERT_TYPE,
                                        MBEDTLS_OID_SIZE( MBEDTLS_OID_NS_CERT_TYPE ),
-                                       c, (size_t)ret );
+                                       buf, 4 );
     if( ret != 0 )
         return( ret );
 
@@ -148,13 +136,13 @@ int mbedtls_x509write_csr_der( mbedtls_x509write_csr *ctx, unsigned char *buf, s
     size_t sig_oid_len = 0;
     unsigned char *c, *c2;
     unsigned char hash[64];
-    unsigned char sig[SIGNATURE_MAX_SIZE];
+    unsigned char sig[MBEDTLS_MPI_MAX_SIZE];
     unsigned char tmp_buf[2048];
     size_t pub_len = 0, sig_and_oid_len = 0, sig_len;
     size_t len = 0;
     mbedtls_pk_type_t pk_alg;
 #if defined(MBEDTLS_USE_PSA_CRYPTO)
-    psa_hash_operation_t hash_operation = PSA_HASH_OPERATION_INIT;
+    psa_hash_operation_t hash_operation;
     size_t hash_len;
     psa_algorithm_t hash_alg = mbedtls_psa_translate_md( ctx->md_alg );
 #endif /* MBEDTLS_USE_PSA_CRYPTO */
