@@ -71,15 +71,16 @@ public class mbedTLS {
     public static var sslConfig: mbedtls_ssl_config!
     public static var counterRandomByteGenerator: mbedtls_ctr_drbg_context!
     public static var entropy: mbedtls_entropy_context!
-    public static var certChain1: mbedtls_x509_crt!
-    public static var certChain2: mbedtls_x509_crt!
-    public static var ecKeyPair: mbedtls_pk_context!
+    public static var certChain1: CertificateChain!
+    public static var certChain2: CertificateChain!
+    public static var ecKeyPair: KeyPair!
     
     public static var readCallbackBuffer: [UInt8]?
     
     public typealias sslWriteCallback = (UnsafeMutableRawPointer?, UnsafePointer<UInt8>?, Int) ->  Int32
     public typealias sslReadCallback = (UnsafeMutableRawPointer?, UnsafeMutablePointer<UInt8>?, Int) ->  Int32
     public typealias KeyPair = mbedtls_pk_context
+    public typealias CertificateChain = mbedtls_x509_crt
     
     static var sslWriteCallbackFunc: sslWriteCallback!
     static var sslReadCallbackFunc: sslReadCallback!
@@ -108,8 +109,8 @@ public class mbedTLS {
     }
     
     public static func initializeCertChain() {
-        mbedTLS.certChain1 = mbedtls_x509_crt()
-        mbedTLS.certChain2 = mbedtls_x509_crt()
+        mbedTLS.certChain1 = CertificateChain()
+        mbedTLS.certChain2 = CertificateChain()
         mbedtls_x509_crt_init(&mbedTLS.certChain1)
         mbedtls_x509_crt_init(&mbedTLS.certChain2)
     }
@@ -186,8 +187,6 @@ public class mbedTLS {
         } else {
             if try handshakeStep() {
                 switch mbedTLS.currentHandshakeState {
-                case .serverKeyExchange:
-                    sslContext.session_negotiate.pointee.peer_cert.pointee = sslContext.session_negotiate.pointee.peer_cert.pointee.next.pointee
                 case HandshakeSteps.clientCertificate...HandshakeSteps.clientFinished, HandshakeSteps.flushBuffers...HandshakeSteps.handshakeCompleted:
                     try executeNextHandshakeStep()
                 default:
