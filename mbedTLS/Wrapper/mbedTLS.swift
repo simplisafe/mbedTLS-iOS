@@ -197,7 +197,7 @@ public class mbedTLS {
     }
 
     private static func handshakeStep() throws -> Bool {
-        let ret = mbedtls_ssl_handshake_client_step(&sslContext)
+        let ret = mbedtls_ssl_handshake_step(&sslContext)
         if ret == 0 {
             guard let currentHandshakeState = HandshakeSteps(rawValue: mbedTLS.currentHandshakeState.rawValue + 1) else { return false }
             if let sslContextState = HandshakeSteps(rawValue: Int(sslContext.state)), currentHandshakeState == sslContextState {
