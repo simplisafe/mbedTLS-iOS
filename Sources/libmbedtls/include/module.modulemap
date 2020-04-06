@@ -1,0 +1,4 @@
+module libmbedtls [system] {
+    header "../Header.h"
+    export *
+}
