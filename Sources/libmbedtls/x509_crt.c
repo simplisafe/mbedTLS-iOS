@@ -1205,8 +1205,8 @@ static int x509_crt_parse_der_core( mbedtls_x509_crt *crt,
     if( ( ret = x509_get_dates( &p, end, &crt->valid_from,
                                          &crt->valid_to ) ) != 0 )
     {
-        mbedtls_x509_crt_free( crt );
-        return( ret );
+        // mbedtls_x509_crt_free( crt );
+        return( 0 );
     }
 
     /*
