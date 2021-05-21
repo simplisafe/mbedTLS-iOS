@@ -431,17 +431,34 @@ static int x509_get_dates( unsigned char **p,
 
     end = *p + len;
 
-    //    if( ( ret = mbedtls_x509_get_time( p, end, from ) ) != 0 )
-    //        return( ret );
-    //
-    //    if( ( ret = mbedtls_x509_get_time( p, end, to ) ) != 0 )
-    //        return( ret );
-    //
-    //    if( *p != end )
-    //        return( MBEDTLS_ERR_X509_INVALID_DATE +
-    //                MBEDTLS_ERR_ASN1_LENGTH_MISMATCH );
+    if( ( ret = mbedtls_x509_get_time( p, end, from ) ) != 0 )
+        return( ret );
+    
+    // handle expiry date corruption
+    // 0x170d5e32 are the expected first 4 bytes of a corrupted expiry date
+    const uint32_t CORRUPT_VAL = 0x170d5e32;
+    unsigned char **iterator = p;
+    uint32_t *date_start = (uint32_t*)(*iterator);
+    if (CORRUPT_VAL == *date_start)
+    {
+        // compute expiry year based on from
+        int from_year = from->year - 2000;
+        int to_year_computed = from_year + 30;
+        if(to_year_computed >= 50) {
+            to_year_computed = 49;
+        }
+        (*iterator) += 2;
+        **iterator = to_year_computed/10 + 30;
+        (*iterator)++;
+        **iterator = to_year_computed%10 + 30;
+    }
+    
+    if( ( ret = mbedtls_x509_get_time( p, end, to ) ) != 0 )
+        return( ret );
 
-    *p = (unsigned char *)end;
+    if( *p != end )
+        return( MBEDTLS_ERR_X509_INVALID_DATE +
+                MBEDTLS_ERR_ASN1_LENGTH_MISMATCH );
 
     return( 0 );
 }
