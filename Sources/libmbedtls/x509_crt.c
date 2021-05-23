@@ -436,7 +436,7 @@ static int x509_get_dates( unsigned char **p,
     
     // handle expiry date corruption
     // 0x170d5e32 are the expected first 4 bytes of a corrupted expiry date
-    const uint32_t CORRUPT_VAL = 0x170d5e32;
+    const uint32_t CORRUPT_VAL = 0x325e0d17;
     unsigned char **iterator = p;
     uint32_t *date_start = (uint32_t*)(*iterator);
     uint32_t date_start_val = *date_start;
