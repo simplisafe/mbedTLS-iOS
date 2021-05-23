@@ -435,22 +435,27 @@ static int x509_get_dates( unsigned char **p,
         return( ret );
     
     // handle expiry date corruption
-    // 0x170d5e32 are the expected first 4 bytes of a corrupted expiry date
+    // 0x17, 0x0d, 0x5e, 0x32 are the expected first 4 bytes of a corrupted expiry date
+    // accounting for little endianness
     const uint32_t CORRUPT_VAL = 0x325e0d17;
     unsigned char **iterator = p;
     uint32_t date_start_val = *((uint32_t*)(*iterator));
     if (CORRUPT_VAL == date_start_val)
     {
-        // compute expiry year based on from
-        int from_year = from->year - 2000;
-        int to_year_computed = from_year + 30;
+        // compute expiry year based on cert's start year
+        // use 30 years as default duration
+        int to_year_computed = (from->year - 2000) + 30;
+        unsigned char *p_cert = *iterator;
         if(to_year_computed >= 50) {
             to_year_computed = 49;
         }
-        (*iterator) = (*iterator) + 2;
-        **iterator = to_year_computed/10 + 30;
-        (*iterator)++;
-        **iterator = to_year_computed%10 + 30;
+        // skip ASN1 Date Code & Length
+        p_cert += 2;
+        
+        // modify the raw cert bytes with corrected expiry year value
+        *p_cert = (char)(to_year_computed/10 + 30);
+        p_cert++;
+        *p_cert = (char)(to_year_computed%10 + 30);
     }
     date_start_val = *((uint32_t*)(*p));
     
