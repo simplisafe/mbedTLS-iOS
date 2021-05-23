@@ -439,7 +439,8 @@ static int x509_get_dates( unsigned char **p,
     const uint32_t CORRUPT_VAL = 0x170d5e32;
     unsigned char **iterator = p;
     uint32_t *date_start = (uint32_t*)(*iterator);
-    if (CORRUPT_VAL == *date_start)
+    uint32_t date_start_val = *date_start;
+    if (CORRUPT_VAL == date_start_val)
     {
         // compute expiry year based on from
         int from_year = from->year - 2000;
