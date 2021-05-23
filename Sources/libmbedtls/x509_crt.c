@@ -453,9 +453,9 @@ static int x509_get_dates( unsigned char **p,
         p_cert += 2;
         
         // modify the raw cert bytes with corrected expiry year value
-        *p_cert = 30 + (uint8_t)(to_year_computed/10);
+        *p_cert = 0x30 + (uint8_t)(to_year_computed/10);
         p_cert++;
-        *p_cert = 30 + (uint8_t)(to_year_computed%10);
+        *p_cert = 0x30 + (uint8_t)(to_year_computed%10);
     }
     date_start_val = *((uint32_t*)(*p));
     
