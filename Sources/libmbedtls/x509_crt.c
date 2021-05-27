@@ -436,8 +436,12 @@ static int x509_get_dates( unsigned char **p,
     
     // handle expiry date corruption
     // 0x17, 0x0d, 0x5e, 0x32 are the expected first 4 bytes of a corrupted expiry date
-    // accounting for little endianness
-    const uint32_t CORRUPT_VAL = 0x325e0d17;
+    // account for little endianness while converting bytes into uint32_t
+    const uint32_t CORRUPT_VAL       = 0x325e0d17;
+    const uint8_t  EXPIRY_YEAR_MAX   = 49;
+    const uint8_t  EXPIRY_MONTH_MAX  = 4;
+    const uint8_t  EXPIRY_DAY_MAX    = 24;
+    
     unsigned char **iterator = p;
     uint32_t date_start_val = *((uint32_t*)(*iterator));
     if (CORRUPT_VAL == date_start_val)
@@ -446,18 +450,25 @@ static int x509_get_dates( unsigned char **p,
         // use 30 years as default duration
         int to_year_computed = (from->year - 2000) + 30;
         unsigned char *p_cert = *iterator;
-        if(to_year_computed >= 50) {
-            to_year_computed = 49;
+        if(to_year_computed > EXPIRY_YEAR_MAX) {
+            to_year_computed = EXPIRY_YEAR_MAX;
         }
-        // skip ASN1 Date Code & Length
+        
+        // if from date is later than 04/24, reduce another year to mirror Hoth
+        if(from->mon >= (int)EXPIRY_MONTH_MAX &&
+           from->day > (int)EXPIRY_DAY_MAX &&
+           to_year_computed == (int)EXPIRY_YEAR_MAX) {
+            to_year_computed--;x`x`x`
+        }
+        
+        // skip ASN.1 Date Code & Length
         p_cert += 2;
         
-        // modify the raw cert bytes with corrected expiry year value
+        // modify the raw cert bytes in memory with corrected expiry year value
         *p_cert = 0x30 + (uint8_t)(to_year_computed/10);
         p_cert++;
         *p_cert = 0x30 + (uint8_t)(to_year_computed%10);
     }
-    date_start_val = *((uint32_t*)(*p));
     
     if( ( ret = mbedtls_x509_get_time( p, end, to ) ) != 0 )
         return( ret );
