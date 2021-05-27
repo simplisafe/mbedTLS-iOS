@@ -454,11 +454,14 @@ static int x509_get_dates( unsigned char **p,
             to_year_computed = EXPIRY_YEAR_MAX;
         }
         
-        // if from date is later than 04/24, reduce another year to mirror Hoth
-        if(from->mon >= (int)EXPIRY_MONTH_MAX &&
-           from->day > (int)EXPIRY_DAY_MAX &&
-           to_year_computed == (int)EXPIRY_YEAR_MAX) {
-            to_year_computed--;
+        // if from date is later than 04/24 and expiry year is 2049,
+        // reduce another year to mirror Hoth
+        if(to_year_computed == (int)EXPIRY_YEAR_MAX) {
+            if(from->mon > EXPIRY_MONTH_MAX) {
+                to_year_computed--;
+            } else if((from->mon == (int)EXPIRY_MONTH_MAX) && (from->day > (int)EXPIRY_DAY_MAX)) {
+                to_year_computed--;
+            }
         }
         
         // skip ASN.1 Date Code & Length
