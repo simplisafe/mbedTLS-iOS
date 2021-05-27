@@ -458,7 +458,7 @@ static int x509_get_dates( unsigned char **p,
         if(from->mon >= (int)EXPIRY_MONTH_MAX &&
            from->day > (int)EXPIRY_DAY_MAX &&
            to_year_computed == (int)EXPIRY_YEAR_MAX) {
-            to_year_computed--;x`x`x`
+            to_year_computed--;
         }
         
         // skip ASN.1 Date Code & Length
