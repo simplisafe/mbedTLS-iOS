@@ -441,11 +441,17 @@ static int x509_get_dates( unsigned char **p,
     const uint8_t  EXPIRY_YEAR_MAX   = 49;
     const uint8_t  EXPIRY_MONTH_MAX  = 4;
     const uint8_t  EXPIRY_DAY_MAX    = 24;
+
+    // set to `false` or `0` by default
+    ss_date_workaround_used = 0;
     
     unsigned char **iterator = p;
     uint32_t date_start_val = *((uint32_t*)(*iterator));
     if (CORRUPT_VAL == date_start_val)
     {
+        // set to `true` or `1` if corrupted date value found
+        ss_date_workaround_used = 1;
+
         // compute expiry year based on cert's start year
         // use 30 years as default duration
         int to_year_computed = (from->year - 2000) + 30;

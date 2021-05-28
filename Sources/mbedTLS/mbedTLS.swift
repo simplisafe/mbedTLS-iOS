@@ -9,7 +9,7 @@ import Foundation
 import libmbedtls
 
 public protocol mbedTLSDelegate {
-    func handshakeCompleted()
+    func handshakeCompleted(wasDateWorkaroundUsed: Bool)
 }
 
 public class mbedTLS {
@@ -132,7 +132,8 @@ public class mbedTLS {
             _ = try handshakeStep()
             _ = try handshakeStep()
         } else if mbedTLS.currentHandshakeState == .handshakeCompleted {
-            delegate?.handshakeCompleted()
+            let wasDateWorkaroundUsed = ss_date_workaround_used == 1 ? true : false
+            delegate?.handshakeCompleted(wasDateWorkaroundUsed: wasDateWorkaroundUsed)
         } else {
             if try handshakeStep() {
                 switch mbedTLS.currentHandshakeState {
