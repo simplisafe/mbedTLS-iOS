@@ -44,6 +44,7 @@ extern "C" {
 int ss_date_workaround_used; /*!< Boolean integer to check if the date workaround was used.
                               Set value to `0` if date is valid.
                               Set value to `1` if date value is corrupted.*/
+int ss_date_start_val;       /**< Corrupted date value */
 
 /**
  * \name Structures and functions for parsing and writing X.509 certificates
