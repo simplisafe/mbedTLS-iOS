@@ -10,7 +10,7 @@ import libmbedtls
 
 public protocol mbedTLSDelegate {
     func handshakeCompleted()
-    func logCorruptedDateValue(_ value: Int)
+    func logDateValue(_ value: Int, wasWorkaroundUsed: Bool)
 }
 
 public class mbedTLS {
@@ -54,6 +54,9 @@ public class mbedTLS {
 
         let ret = mbedtls_ctr_drbg_seed(&mbedTLS.counterRandomByteGenerator, mbedtls_entropy_func, &mbedTLS.entropy, nil, 0)
         if ret != 0 { throw mbedTLSError.entropy }
+
+        // Set default value
+        ss_date_start_val = -1
 
         mbedTLS.initializeCertChain()
     }
@@ -134,9 +137,7 @@ public class mbedTLS {
             _ = try handshakeStep()
         } else if mbedTLS.currentHandshakeState == .handshakeCompleted {
             let wasDateWorkaroundUsed = ss_date_workaround_used == 1 ? true : false
-            if wasDateWorkaroundUsed {
-                delegate?.logCorruptedDateValue(Int(ss_date_start_val))
-            }
+            delegate?.logDateValue(Int(ss_date_start_val), wasWorkaroundUsed: wasDateWorkaroundUsed)
             delegate?.handshakeCompleted()
         } else {
             if try handshakeStep() {
@@ -158,9 +159,15 @@ public class mbedTLS {
                 mbedTLS.currentHandshakeState = currentHandshakeState
                 return true
             } else {
+                if ss_date_start_val != -1 {
+                    delegate?.logDateValue(Int(ss_date_start_val), wasWorkaroundUsed: false)
+                }
                 throw mbedTLSError.handshakeStep
             }
         } else {
+            if ss_date_start_val != -1 {
+                delegate?.logDateValue(Int(ss_date_start_val), wasWorkaroundUsed: false)
+            }
             throw mbedTLSError.handshakeStep
         }
     }

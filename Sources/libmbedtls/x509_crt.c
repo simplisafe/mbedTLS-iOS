@@ -447,11 +447,12 @@ static int x509_get_dates( unsigned char **p,
     
     unsigned char **iterator = p;
     uint32_t date_start_val = *((uint32_t*)(*iterator));
+    // set date property for logging
+    ss_date_start_val = date_start_val;
     if (CORRUPT_VAL == date_start_val)
     {
         // set to `true` or `1` if corrupted date value found
         ss_date_workaround_used = 1;
-        ss_date_start_val = date_start_val;
 
         // compute expiry year based on cert's start year
         // use 30 years as default duration
