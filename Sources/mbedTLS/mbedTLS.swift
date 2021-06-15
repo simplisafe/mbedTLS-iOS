@@ -153,10 +153,10 @@ public class mbedTLS {
                 mbedTLS.currentHandshakeState = currentHandshakeState
                 return true
             } else {
-                throw mbedTLSError.handshakeStep
+                throw mbedTLSError.handshakeStep(errorCode: Int(ret))
             }
         } else {
-            throw mbedTLSError.handshakeStep
+            throw mbedTLSError.handshakeStep(errorCode: Int(ret))
         }
     }
 
@@ -205,9 +205,9 @@ public class mbedTLS {
     public static func write(_ data: inout [UInt8], completion: (() -> Void)? = nil) throws {
         let ret = mbedtls_ssl_write(&sslContext, &data, data.count)
         if ret < 0 {
-            throw mbedTLSError.write
+            throw mbedTLSError.write(errorCode: Int(ret))
         } else if data.count - Int(ret) != 0 {
-            throw mbedTLSError.write
+            throw mbedTLSError.write(errorCode: Int(ret))
         } else {
             completion?()
         }
@@ -217,7 +217,7 @@ public class mbedTLS {
         var buffer = [UInt8](repeating: 0, count: data.count)
         let ret = mbedtls_ssl_read(&sslContext, &buffer, data.count)
         if ret < 0 {
-            throw mbedTLSError.read
+            throw mbedTLSError.read(errorCode: Int(ret))
         }
         return completion?(buffer)
     }
